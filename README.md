@@ -35,3 +35,7 @@ The project uses an Excel dataset containing student academic performance record
 
 ## Project Outcome
 The dashboard provides insights into student performance and helps identify academic areas requiring improvement.
+
+## Dashboard Preview
+
+![Power BI Dashboard](dashboard.png)
