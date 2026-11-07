@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Power BI Data Model — Subject Mastery Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #05080f;
+    --bg2:       #0b1120;
+    --card:      #0f1a2e;
+    --card2:     #132035;
+    --border:    #1e3a5f;
+    --glow:      #1d6fa4;
+    --accent:    #38bdf8;
+    --accent2:   #0ea5e9;
+    --gold:      #f59e0b;
+    --green:     #22c55e;
+    --red:       #ef4444;
+    --amber:     #f97316;
+    --purple:    #a78bfa;
+    --text:      #e2eaf5;
+    --muted:     #7a9bbf;
+    --fact-bg:   #0c1f3a;
+    --fact-bdr:  #2563eb;
+    --dim-bg:    #0d2010;
+    --dim-bdr:   #16a34a;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Space Grotesk', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Animated starfield bg ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(56,189,248,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(56,189,248,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 70%, rgba(167,139,250,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(56,189,248,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 50%, rgba(245,158,11,0.2) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .page {
+    position: relative; z-index: 1;
+    max-width: 1400px; margin: 0 auto;
+    padding: 40px 32px 60px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    padding: 36px 40px;
+    background: linear-gradient(135deg, #051628 0%, #0a2240 50%, #051628 100%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--purple), var(--accent), transparent);
+  }
+  .header::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glow), transparent);
+  }
+  .header-tag {
+    display: inline-block;
+    background: rgba(56,189,248,0.1);
+    border: 1px solid rgba(56,189,248,0.3);
+    color: var(--accent);
+    font-size: 11px; font-weight: 600; letter-spacing: 3px;
+    text-transform: uppercase; padding: 5px 16px; border-radius: 50px;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: clamp(24px, 4vw, 42px);
+    font-weight: 700; line-height: 1.15;
+    color: #fff;
+    text-shadow: 0 0 40px rgba(56,189,248,0.4);
+    margin-bottom: 8px;
+  }
+  .header h1 span { color: var(--accent); }
+  .header p {
+    color: var(--muted); font-size: 14px; letter-spacing: 0.5px;
+  }
+  .stats-row {
+    display: flex; justify-content: center; gap: 32px;
+    margin-top: 24px; flex-wrap: wrap;
+  }
+  .stat-chip {
+    background: rgba(56,189,248,0.08);
+    border: 1px solid rgba(56,189,248,0.2);
+    padding: 8px 20px; border-radius: 50px;
+    font-size: 13px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .stat-chip strong { color: var(--accent); font-size: 16px; }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex; gap: 20px; justify-content: center;
+    margin-bottom: 36px; flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+  }
+  .legend-dot {
+    width: 12px; height: 12px; border-radius: 3px;
+  }
+
+  /* ── DIAGRAM CANVAS ── */
+  .diagram {
+    position: relative;
+    min-height: 680px;
+    margin-bottom: 48px;
+  }
+
+  /* SVG connector lines */
+  .connectors {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1;
+    overflow: visible;
+  }
+
+  /* ── TABLE CARDS ── */
+  .table-card {
+    position: absolute; z-index: 10;
+    border-radius: 14px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transition: transform 0.3s, box-shadow 0.3s;
+    min-width: 220px;
+  }
+  .table-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+    z-index: 20;
+  }
+
+  /* Fact table */
+  .table-fact {
+    background: var(--fact-bg);
+    border: 2px solid var(--fact-bdr);
+    box-shadow: 0 0 30px rgba(37,99,235,0.25), 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .table-fact:hover { box-shadow: 0 0 50px rgba(37,99,235,0.4), 0 16px 48px rgba(0,0,0,0.7); }
+
+  /* Dimension tables */
+  .table-dim {
+    background: var(--dim-bg);
+    border: 2px solid var(--dim-bdr);
+    box-shadow: 0 0 20px rgba(22,163,74,0.15), 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .table-dim:hover { box-shadow: 0 0 40px rgba(22,163,74,0.3), 0 16px 48px rgba(0,0,0,0.7); }
+
+  /* Measures table */
+  .table-measures {
+    background: #1a0a2e;
+    border: 2px solid #7c3aed;
+    box-shadow: 0 0 20px rgba(124,58,237,0.2), 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .card-header {
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .table-fact .card-header { background: linear-gradient(135deg, #1e3a8a, #1d4ed8); }
+  .table-dim  .card-header { background: linear-gradient(135deg, #14532d, #15803d); }
+  .table-measures .card-header { background: linear-gradient(135deg, #3b0764, #6d28d9); }
+
+  .card-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .table-fact .card-icon    { background: rgba(255,255,255,0.15); }
+  .table-dim .card-icon     { background: rgba(255,255,255,0.15); }
+  .table-measures .card-icon{ background: rgba(255,255,255,0.15); }
+
+  .card-title { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.3px; }
+  .card-subtitle { font-size: 10px; color: rgba(255,255,255,0.6); font-weight: 400; margin-top: 1px; }
+
+  .card-body { padding: 8px 0; }
+
+  .field-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 14px;
+    transition: background 0.15s;
+  }
+  .field-row:hover { background: rgba(255,255,255,0.04); }
+
+  .field-icon {
+    font-size: 10px; width: 16px; text-align: center; flex-shrink: 0;
+  }
+  .field-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text); flex: 1;
+  }
+  .field-name.pk { color: var(--gold); font-weight: 600; }
+  .field-name.fk { color: var(--accent); }
+  .field-name.measure { color: var(--purple); }
+  .field-type {
+    font-size: 9px; color: var(--muted);
+    background: rgba(255,255,255,0.06);
+    padding: 1px 6px; border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .divider { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 0; }
+
+  .row-count {
+    padding: 6px 14px;
+    display: flex; justify-content: flex-end;
+  }
+  .row-badge {
+    font-size: 10px; color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .row-badge strong { color: var(--accent); }
+
+  /* ── RELATIONSHIP LABELS ── */
+  .rel-label {
+    position: absolute; z-index: 15;
+    background: #0b1120;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 10px;
+    color: var(--muted);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* ── BOTTOM SECTION: Relationships Table ── */
+  .section-title {
+    font-size: 13px; font-weight: 600; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  .rel-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px; margin-bottom: 40px;
+  }
+  .rel-table th {
+    background: #0a1628;
+    color: var(--muted); font-weight: 600;
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.5px; font-size: 11px;
+    text-transform: uppercase;
+  }
+  .rel-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30,58,95,0.5);
+    color: var(--text);
+  }
+  .rel-table tr:hover td { background: rgba(56,189,248,0.04); }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .badge-blue  { background: rgba(37,99,235,0.2);  color: #60a5fa; border: 1px solid rgba(37,99,235,0.3); }
+  .badge-green { background: rgba(22,163,74,0.2);  color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
+  .badge-m1    { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+
+  /* DAX Quick Ref */
+  .dax-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px; margin-bottom: 48px;
+  }
+  .dax-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+    transition: border-color 0.2s;
+  }
+  .dax-card:hover { border-color: var(--glow); }
+  .dax-card-head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .dax-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 1px;
+    padding: 2px 7px; border-radius: 4px; text-transform: uppercase;
+  }
+  .dax-badge.col  { background: rgba(245,158,11,0.2); color: var(--gold); border: 1px solid rgba(245,158,11,0.3); }
+  .dax-badge.msr  { background: rgba(167,139,250,0.2); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+  .dax-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .dax-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: #a9d18e; line-height: 1.6;
+    background: rgba(0,0,0,0.3);
+    padding: 8px 10px; border-radius: 6px;
+    border-left: 2px solid #22c55e;
+    white-space: pre;
+  }
+
+  /* Footer */
+  .poster-footer {
+    text-align: center; padding: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 11px; letter-spacing: 0.5px;
+  }
+  .poster-footer strong { color: var(--accent); }
+
+  @media (max-width: 900px) {
+    .diagram { min-height: 900px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <div class="header-tag">Power BI Mini Project  ·  B.Tech III Year</div>
+    <h1>Data Model Poster<br/><span>Subject Mastery Analysis</span></h1>
+    <p>Identifying Academic Risk Zones  ·  Star Schema Architecture  ·  5 Tables  ·  4 Relationships</p>
+    <div class="stats-row">
+      <div class="stat-chip"><strong>120</strong> Students</div>
+      <div class="stat-chip"><strong>462</strong> Mark Records</div>
+      <div class="stat-chip"><strong>15</strong> Subjects</div>
+      <div class="stat-chip"><strong>4</strong> Departments</div>
+      <div class="stat-chip"><strong>14+</strong> DAX Measures</div>
+    </div>
+  </div>
+
+  <!-- ═══ LEGEND ═══ -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#1d4ed8;box-shadow:0 0 6px #1d4ed8"></div> Fact Table</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#15803d;box-shadow:0 0 6px #15803d"></div> Dimension Table</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6d28d9;box-shadow:0 0 6px #6d28d9"></div> Measures Table</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gold);border-radius:50%"></div> Primary Key (PK)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent);border-radius:50%"></div> Foreign Key (FK)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple);border-radius:50%"></div> DAX Measure</div>
+  </div>
+
+  <!-- ═══ DIAGRAM ═══ -->
+  <div class="section-title">Star Schema  ·  Model View</div>
+
+  <div class="diagram" id="diag">
+
+    <!-- SVG Connectors drawn after layout -->
+    <svg class="connectors" id="svg-lines"></svg>
+
+    <!-- ═══ FACT TABLE (center) ═══ -->
+    <div class="table-card table-fact" id="tbl-fact"
+         style="left:38%;top:180px;width:260px;">
+      <div class="card-header">
+        <div class="card-icon">⚡</div>
+        <div>
+          <div class="card-title">Fact_Marks</div>
+          <div class="card-subtitle">Central Fact Table</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--gold)">🔑</span>
+          <span class="field-name pk">MarkID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--accent)">🔗</span>
+          <span class="field-name fk">StudentID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--accent)">🔗</span>
+          <span class="field-name fk">SubjectID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--accent)">🔗</span>
+          <span class="field-name fk">DeptID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--accent)">🔗</span>
+          <span class="field-name fk">YearID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row">
+          <span class="field-icon">📊</span>
+          <span class="field-name">Marks_IA</span>
+          <span class="field-type">INT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon">📊</span>
+          <span class="field-name">Marks_EndSem</span>
+          <span class="field-type">INT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon">📊</span>
+          <span class="field-name">TotalMarks</span>
+          <span class="field-type">INT</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon">📊</span>
+          <span class="field-name">Attendance_Pct</span>
+          <span class="field-type">DEC</span>
+        </div>
+        <div class="field-row">
+          <span class="field-icon">📅</span>
+          <span class="field-name">ExamDate</span>
+          <span class="field-type">DATE</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row" style="opacity:0.7">
+          <span class="field-icon">🧮</span>
+          <span class="field-name" style="color:#fbbf24;font-style:italic;font-size:10px">Grade [Calc. Col.]</span>
+        </div>
+        <div class="field-row" style="opacity:0.7">
+          <span class="field-icon">🧮</span>
+          <span class="field-name" style="color:#fbbf24;font-style:italic;font-size:10px">Risk_Category [Calc.]</span>
+        </div>
+        <div class="field-row" style="opacity:0.7">
+          <span class="field-icon">🧮</span>
+          <span class="field-name" style="color:#fbbf24;font-style:italic;font-size:10px">Pass_Fail [Calc.]</span>
+        </div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>462</strong> rows</div></div>
+    </div>
+
+    <!-- ═══ DIM_STUDENT (left) ═══ -->
+    <div class="table-card table-dim" id="tbl-student"
+         style="left:2%;top:80px;width:220px;">
+      <div class="card-header">
+        <div class="card-icon">👤</div>
+        <div>
+          <div class="card-title">Dim_Student</div>
+          <div class="card-subtitle">Student Master</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--gold)">🔑</span>
+          <span class="field-name pk">StudentID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">StudentName</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">RollNumber</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">🔗</span><span class="field-name fk">DeptID</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Branch</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Year</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Gender</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📅</span><span class="field-name">DOB</span><span class="field-type">DATE</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Category</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Status</span><span class="field-type">TEXT</span></div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>120</strong> rows</div></div>
+    </div>
+
+    <!-- ═══ DIM_SUBJECT (right) ═══ -->
+    <div class="table-card table-dim" id="tbl-subject"
+         style="right:2%;top:80px;width:225px;">
+      <div class="card-header">
+        <div class="card-icon">📚</div>
+        <div>
+          <div class="card-title">Dim_Subject</div>
+          <div class="card-subtitle">Subject Master</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--gold)">🔑</span>
+          <span class="field-name pk">SubjectID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">SubjectCode</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">SubjectName</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">🔗</span><span class="field-name fk">DeptID</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Semester</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">SemesterNo</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">MaxMarks</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">PassMarks</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">Credits</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Type</span><span class="field-type">TEXT</span></div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>15</strong> rows</div></div>
+    </div>
+
+    <!-- ═══ DIM_DEPARTMENT (bottom-left) ═══ -->
+    <div class="table-card table-dim" id="tbl-dept"
+         style="left:4%;bottom:40px;width:220px;">
+      <div class="card-header">
+        <div class="card-icon">🏛️</div>
+        <div>
+          <div class="card-title">Dim_Department</div>
+          <div class="card-subtitle">Department Master</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--gold)">🔑</span>
+          <span class="field-name pk">DeptID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">DeptName</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">DeptCode</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">HOD_Name</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Programme</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Duration</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">EstYear</span><span class="field-type">INT</span></div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>5</strong> rows</div></div>
+    </div>
+
+    <!-- ═══ DIM_ACADEMICYEAR (bottom-right) ═══ -->
+    <div class="table-card table-dim" id="tbl-year"
+         style="right:4%;bottom:40px;width:220px;">
+      <div class="card-header">
+        <div class="card-icon">📅</div>
+        <div>
+          <div class="card-title">Dim_AcademicYear</div>
+          <div class="card-subtitle">Time Dimension</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row">
+          <span class="field-icon" style="color:var(--gold)">🔑</span>
+          <span class="field-name pk">YearID</span>
+          <span class="field-type">TEXT</span>
+        </div>
+        <div class="divider"></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">AcademicYear</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Semester_Type</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">SemesterName</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">🔢</span><span class="field-name">SemesterNo</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">Start_Month</span><span class="field-type">TEXT</span></div>
+        <div class="field-row"><span class="field-icon">📝</span><span class="field-name">End_Month</span><span class="field-type">TEXT</span></div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>6</strong> rows</div></div>
+    </div>
+
+    <!-- ═══ MEASURES TABLE (top-center) ═══ -->
+    <div class="table-card table-measures" id="tbl-measures"
+         style="left:38%;top:0px;width:260px;">
+      <div class="card-header">
+        <div class="card-icon">⚗️</div>
+        <div>
+          <div class="card-title">_Measures</div>
+          <div class="card-subtitle">DAX Calculations</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Avg_Marks</span><span class="field-type">DEC</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Pass_Percentage</span><span class="field-type">DEC</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Total_Students</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Count_AtRisk</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Count_Borderline</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Count_Safe</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">AtRisk_Pct</span><span class="field-type">DEC</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Student_Rank</span><span class="field-type">INT</span></div>
+        <div class="field-row"><span class="field-icon" style="color:var(--purple)">∑</span><span class="field-name measure">Subject_Avg</span><span class="field-type">DEC</span></div>
+      </div>
+      <div class="row-count"><div class="row-badge"><strong>14+</strong> measures</div></div>
+    </div>
+
+  </div><!-- /diagram -->
+
+  <!-- SVG Connections Script -->
+  <script>
+  function drawLines() {
+    const diag = document.getElementById('diag');
+    const svg  = document.getElementById('svg-lines');
+    const dr   = diag.getBoundingClientRect();
+
+    function center(id) {
+      const el = document.getElementById(id);
+      const r  = el.getBoundingClientRect();
+      return {
+        x: r.left - dr.left + r.width / 2,
+        y: r.top  - dr.top  + r.height / 2,
+        l: r.left - dr.left,
+        r: r.left - dr.left + r.width,
+        t: r.top  - dr.top,
+        b: r.top  - dr.top  + r.height,
+      };
+    }
+
+    const fact = center('tbl-fact');
+    const stu  = center('tbl-student');
+    const sub  = center('tbl-subject');
+    const dept = center('tbl-dept');
+    const yr   = center('tbl-year');
+
+    svg.innerHTML = '';
+    svg.setAttribute('width', dr.width);
+    svg.setAttribute('height', dr.height);
+
+    function line(x1,y1,x2,y2,color='#2563eb') {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','line');
+      el.setAttribute('x1',x1); el.setAttribute('y1',y1);
+      el.setAttribute('x2',x2); el.setAttribute('y2',y2);
+      el.setAttribute('stroke',color);
+      el.setAttribute('stroke-width','2');
+      el.setAttribute('stroke-dasharray','6 4');
+      el.setAttribute('opacity','0.7');
+      svg.appendChild(el);
+    }
+    function dot(x,y,color='#2563eb') {
+      const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',x); c.setAttribute('cy',y);
+      c.setAttribute('r','5'); c.setAttribute('fill',color);
+      c.setAttribute('filter','url(#glow)');
+      svg.appendChild(c);
+    }
+    function diamond(x,y,color='#f59e0b') {
+      const p = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      const s = 6;
+      p.setAttribute('points',`${x},${y-s} ${x+s},${y} ${x},${y+s} ${x-s},${y}`);
+      p.setAttribute('fill',color);
+      svg.appendChild(p);
+    }
+    function label(x,y,txt,color='#7a9bbf') {
+      const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',x); t.setAttribute('y',y);
+      t.setAttribute('fill',color); t.setAttribute('font-size','10');
+      t.setAttribute('font-family','Space Grotesk, sans-serif');
+      t.setAttribute('font-weight','600'); t.setAttribute('text-anchor','middle');
+      t.textContent = txt; svg.appendChild(t);
+    }
+
+    // glow filter
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `<filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+    svg.appendChild(defs);
+
+    const C = '#3b82f6';  // line color
+    const G = '#16a34a'; // dimension green
+
+    // Student ← Fact
+    line(stu.r, stu.y, fact.l, fact.t+60, C);
+    dot(fact.l, fact.t+60, '#60a5fa'); diamond(stu.r, stu.y, '#f59e0b');
+    label((stu.r+fact.l)/2, (stu.y+fact.t+60)/2-10, '1 : *', '#60a5fa');
+
+    // Subject → Fact
+    line(sub.l, sub.y, fact.r, fact.t+70, C);
+    dot(fact.r, fact.t+70, '#60a5fa'); diamond(sub.l, sub.y, '#f59e0b');
+    label((sub.l+fact.r)/2, (sub.y+fact.t+70)/2-10, '1 : *', '#60a5fa');
+
+    // Dept → Fact
+    line(dept.r, dept.t+30, fact.l, fact.b-60, G);
+    dot(fact.l, fact.b-60, '#4ade80'); diamond(dept.r, dept.t+30, '#f59e0b');
+    label((dept.r+fact.l)/2+10, (dept.t+30+fact.b-60)/2-10, '1 : *', '#4ade80');
+
+    // Year → Fact
+    line(yr.l, yr.t+30, fact.r, fact.b-50, G);
+    dot(fact.r, fact.b-50, '#4ade80'); diamond(yr.l, yr.t+30, '#f59e0b');
+    label((yr.l+fact.r)/2-10, (yr.t+30+fact.b-50)/2-10, '1 : *', '#4ade80');
+  }
+
+  window.addEventListener('load', () => { setTimeout(drawLines, 100); });
+  window.addEventListener('resize', drawLines);
+  </script>
+
+  <!-- ═══ RELATIONSHIPS TABLE ═══ -->
+  <div class="section-title">Relationships  ·  Power BI Model View</div>
+
+  <table class="rel-table">
+    <thead>
+      <tr>
+        <th>#</th><th>From Table</th><th>FK Column</th>
+        <th>To Table</th><th>PK Column</th>
+        <th>Cardinality</th><th>Cross Filter</th><th>Direction</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge badge-blue">Fact_Marks</span></td>
+        <td><span class="mono" style="color:var(--accent)">StudentID</span></td>
+        <td><span class="badge badge-green">Dim_Student</span></td>
+        <td><span class="mono" style="color:var(--gold)">StudentID</span></td>
+        <td><span class="badge badge-m1">Many → One</span></td>
+        <td>Single</td>
+        <td>Fact → Dim</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge badge-blue">Fact_Marks</span></td>
+        <td><span class="mono" style="color:var(--accent)">SubjectID</span></td>
+        <td><span class="badge badge-green">Dim_Subject</span></td>
+        <td><span class="mono" style="color:var(--gold)">SubjectID</span></td>
+        <td><span class="badge badge-m1">Many → One</span></td>
+        <td>Single</td>
+        <td>Fact → Dim</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge badge-blue">Fact_Marks</span></td>
+        <td><span class="mono" style="color:var(--accent)">DeptID</span></td>
+        <td><span class="badge badge-green">Dim_Department</span></td>
+        <td><span class="mono" style="color:var(--gold)">DeptID</span></td>
+        <td><span class="badge badge-m1">Many → One</span></td>
+        <td>Single</td>
+        <td>Fact → Dim</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge badge-blue">Fact_Marks</span></td>
+        <td><span class="mono" style="color:var(--accent)">YearID</span></td>
+        <td><span class="badge badge-green">Dim_AcademicYear</span></td>
+        <td><span class="mono" style="color:var(--gold)">YearID</span></td>
+        <td><span class="badge badge-m1">Many → One</span></td>
+        <td>Single</td>
+        <td>Fact → Dim</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge badge-green">Dim_Student</span></td>
+        <td><span class="mono" style="color:var(--accent)">DeptID</span></td>
+        <td><span class="badge badge-green">Dim_Department</span></td>
+        <td><span class="mono" style="color:var(--gold)">DeptID</span></td>
+        <td><span class="badge badge-m1">Many → One</span></td>
+        <td>Single</td>
+        <td>Dim → Dim</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ DAX QUICK REFERENCE ═══ -->
+  <div class="section-title">DAX Quick Reference  ·  Key Measures &amp; Calculated Columns</div>
+
+  <div class="dax-grid">
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge col">Calc Col</span><span class="dax-name">Grade</span></div>
+      <div class="dax-code">SWITCH(TRUE(),
+  [TotalMarks]>=90,"O",
+  [TotalMarks]>=80,"A+",
+  [TotalMarks]>=70,"A",
+  [TotalMarks]>=60,"B+",
+  [TotalMarks]>=50,"B",
+  [TotalMarks]>=40,"C","F")</div>
+    </div>
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge col">Calc Col</span><span class="dax-name">Risk_Category</span></div>
+      <div class="dax-code">IF([TotalMarks] < 35,
+  "At-Risk",
+  IF([TotalMarks] < 50,
+    "Borderline",
+    "Safe"
+  )
+)</div>
+    </div>
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge msr">Measure</span><span class="dax-name">Pass_Percentage</span></div>
+      <div class="dax-code">DIVIDE(
+  COUNTROWS(FILTER(
+    Fact_Marks,
+    Fact_Marks[TotalMarks]>=40
+  )),
+  COUNTROWS(Fact_Marks),
+  0
+) * 100</div>
+    </div>
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge msr">Measure</span><span class="dax-name">Count_AtRisk</span></div>
+      <div class="dax-code">CALCULATE(
+  DISTINCTCOUNT(
+    Fact_Marks[StudentID]
+  ),
+  Fact_Marks[Risk_Category]
+    = "At-Risk"
+)</div>
+    </div>
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge msr">Measure</span><span class="dax-name">Student_Rank</span></div>
+      <div class="dax-code">RANKX(
+  ALL(
+    Dim_Student[StudentName]
+  ),
+  [Avg_Marks],
+  , DESC, DENSE
+)</div>
+    </div>
+    <div class="dax-card">
+      <div class="dax-card-head"><span class="dax-badge msr">Measure</span><span class="dax-name">Subject_Avg</span></div>
+      <div class="dax-code">CALCULATE(
+  AVERAGE(
+    Fact_Marks[TotalMarks]
+  ),
+  ALLEXCEPT(
+    Fact_Marks,
+    Dim_Subject[SubjectName]
+  )
+)</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="poster-footer">
+    <strong>Subject Mastery Analysis: Identifying Academic Risk Zones</strong>  ·
+    Power BI Mini Project  ·  B.Tech III Year  ·  Star Schema  ·
+    5 Tables  ·  462 Mark Records  ·  120 Students  ·  14+ DAX Measures
+  </div>
+
+</div>
+</body>
+</html>
